@@ -1,25 +1,34 @@
-import math
 import numpy as np
-from queue import PriorityQueue, Queue
+from queue import PriorityQueue
 from itertools import product
 
 blank = 0
-goal_board = np.array([[blank, 2, 1], [3, 4, 5], [6, 7, 8]])
-initial_board = np.array([[2, 3, 1], [4, blank, 5], [6, 7, 8]])
+black_hole = -1
+initial_board = np.array([[2, 3, 7, 4, 5], [1, black_hole, 11, black_hole, 8], [6, 10, blank, 12, 15],
+                          [9, black_hole, 14, black_hole, 20], [13, 16, 17, 18, 19]])
+
+goal_board = np.array([[1, 2, 3, 4, 5], [6, black_hole, 7, black_hole, 8], [9, 10, blank, 11, 12],
+                       [13, black_hole, 14, black_hole, 15], [16, 17, 18, 19, 20]])
 
 
 class CustomQueue(PriorityQueue):
     def contains(self, item):
         return self.queue.__contains__(item)
 
+    def peak_item(self, item):
+        print("")
+        for i in self.queue:
+            if i == item:
+                return i
+        return None
+
     def remove(self, item):
-        index = 0
-        while index < len(self.queue):
-            if self.queue[index] == item:
-                break
-        if index >= len(self.queue):
+        if not self.contains(item):
             return False
-        del self.queue[index]
+        print("in remove")
+        for i in range(len(self.queue) - 1):
+            if self.queue[i] == item:
+                del self.queue[i]
         return True
 
 
@@ -27,9 +36,9 @@ class State:
     def __init__(self, board, parent):
         self.board = board
         self.parent = parent
-        self.gn = math.inf
-        self.fn = math.inf
-        self.hn = math.inf
+        self.gn = parent.gn + 1 if parent else 0
+        self.hn = manhattan(board)
+        self.fn = self.gn + self.hn
 
     def __lt__(self, other):
         return self.fn < other.fn
@@ -37,20 +46,23 @@ class State:
     def __eq__(self, other):
         return (np.array(self.board) == np.array(other.board)).all()
 
+    def set_fn(self):
+        self.fn = self.gn + self.hn
+
 
 def print_state(state):
     def print_board():
         for row in state.board:
             print(row)
-
     print("")
     print_board()
+    print("\tgn = " + str(state.gn) + "\n\thn = " + str(state.hn) + "\n\tfn = " + str(state.fn))
 
 
 def swap(a, b, board):
-    t = board[b[1]][b[0]]
+    temp = board[b[1]][b[0]]
     board[b[1]][b[0]] = board[a[1]][a[0]]
-    board[a[1]][a[0]] = t
+    board[a[1]][a[0]] = temp
 
 
 def index_of(item, board):
@@ -69,26 +81,22 @@ def manhattan(board):
 
 def possible_moves(index, board):
     moves = []
-    if index[1] > 0:
+    if index[1] > 0 and board[index[1] - 1][index[0]] != black_hole:
         moves.append((index[0], index[1] - 1))
-    if index[0] > 0:
+    if index[0] > 0 and board[index[1]][index[0] - 1] != black_hole:
         moves.append((index[0] - 1, index[1]))
-    if index[1] < len(board) - 1:
+    if index[1] < len(board) - 1 and board[index[1] + 1][index[0]] != black_hole:
         moves.append((index[0], index[1] + 1))
-    if index[0] < len(board) - 1:
+    if index[0] < len(board) - 1 and board[index[1]][index[0] + 1] != black_hole:
         moves.append((index[0] + 1, index[1]))
     return moves
 
 
 def generate_successor_states(state):
     blank_location = index_of(0, state.board)
-    print("blank loc is " + str(blank_location))
-
-    moves = possible_moves(blank_location, state.board)
-    print(moves)
     states = []
 
-    for move in moves:
+    for move in possible_moves(blank_location, state.board):
         test_board = np.copy(state.board)
         swap(move, blank_location, test_board)
         states.append(State(test_board, state))
@@ -96,30 +104,63 @@ def generate_successor_states(state):
     return states
 
 
+def a_star(initial_state):
+    closed_queue = CustomQueue()
+    open_queue = CustomQueue()
+    open_queue.put(initial_state)
+    goal_state = State(goal_board, None)
+
+    while not open_queue.empty():
+        current_state = open_queue.get()
+        closed_queue.put(current_state)
+        print_state(current_state)
+        states_explored = -1
+
+        if current_state == goal_state:
+            return current_state, states_explored
+
+        successor_states = generate_successor_states(current_state)
+        new_gn = current_state.gn + 1
+
+        print("number of successor states = " + str(len(successor_states)))
+
+        for successor_state in successor_states:
+            print("top of for loop")
+            open_contains_successor = open_queue.contains(successor_state)
+            closed_contains_successor = closed_queue.contains(successor_state)
+            successor_state.parent = current_state
+            print_state(successor_state)
+
+            if not open_contains_successor and not closed_contains_successor:
+                open_queue.put(successor_state)
+            else:
+                successor_state_twin = open_queue.peak_item(successor_state) \
+                    if open_contains_successor else closed_queue.peak_item(successor_state)
+
+                if new_gn < successor_state_twin.gn:
+                    successor_state_twin.parent = current_state
+                    successor_state_twin.gn = new_gn
+                    successor_state_twin.set_fn()
+
+                    if closed_contains_successor:
+                        closed_queue.remove(successor_state_twin)
+                        open_queue.put(successor_state_twin)
+
+
 def main():
     print("main")
-
     initial_state = State(initial_board, None)
-    goal_state = State(goal_board, None)
-    initial_state.fn = 100
-    goal_state.fn = 990
+    initial_state.gn = 0
+    result = a_star(initial_state)
+    final = result[0]
+    path_length = 0
 
-    v = generate_successor_states(initial_state)
-
-    #for state in v:
-    #    print_state(state)
-
-    closed_queue = CustomQueue()
-
-    closed_queue.put(goal_state)
-    closed_queue.put(initial_state)
-
-    x = closed_queue.get()
-
-    print_state(x)
-
-
-
+    print("------path------\n\n")
+    while final is not None:
+        print_state(final)
+        final = final.parent
+        path_length += 1
+    print("path length = " + str(path_length) + "\nstates explored = " + str(result[1]))
 
 
 if __name__ == "__main__":
