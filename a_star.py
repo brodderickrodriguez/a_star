@@ -37,7 +37,7 @@ class State:
         self.board = board
         self.parent = parent
         self.gn = parent.gn + 1 if parent else 0
-        self.hn = manhattan(board)
+        self.hn = heuristic(board)
         self.fn = self.gn + self.hn
 
     def __lt__(self, other):
@@ -71,12 +71,25 @@ def index_of(item, board):
             return x, y
 
 
+def tiles_misplaced(board):
+    distance = 0
+    for y in range(len(board)):
+        for x in range(len(board)):
+            if board[y][x] != goal_board[y][x]:
+                distance += 1
+    return distance
+
+
 def manhattan(board):
     def distance_of(item):
         a = index_of(item, board)
         b = index_of(item, goal_board)
         return abs(a[1] - b[1]) + abs(a[0] - b[0])
     return sum([distance_of(item) for row in board for item in row])
+
+
+def heuristic(board):
+    return tiles_misplaced(board)
 
 
 def possible_moves(index, board):
@@ -109,29 +122,32 @@ def a_star(initial_state):
     open_queue = CustomQueue()
     open_queue.put(initial_state)
     goal_state = State(goal_board, None)
+    unique_states_explored = 0
+    total_states_explored = 0
+    total_expanded_states = 0
+
 
     while not open_queue.empty():
         current_state = open_queue.get()
         closed_queue.put(current_state)
         print_state(current_state)
-        states_explored = -1
+        total_expanded_states += 1
 
         if current_state == goal_state:
-            return current_state, states_explored
+            return current_state, unique_states_explored, total_states_explored, total_expanded_states
 
         successor_states = generate_successor_states(current_state)
         new_gn = current_state.gn + 1
 
-        print("number of successor states = " + str(len(successor_states)))
-
         for successor_state in successor_states:
-            print("top of for loop")
             open_contains_successor = open_queue.contains(successor_state)
             closed_contains_successor = closed_queue.contains(successor_state)
             successor_state.parent = current_state
             print_state(successor_state)
+            total_states_explored += 1
 
             if not open_contains_successor and not closed_contains_successor:
+                unique_states_explored += 1
                 open_queue.put(successor_state)
             else:
                 successor_state_twin = open_queue.peak_item(successor_state) \
@@ -160,7 +176,8 @@ def main():
         print_state(final)
         final = final.parent
         path_length += 1
-    print("path length = " + str(path_length) + "\nstates explored = " + str(result[1]))
+    print("path length = " + str(path_length) + "\nunique states explored = " + str(result[1]))
+    print("total states explored = " + str(result[2]) + "\ntotal states expanded = " + str(result[3]))
 
 
 if __name__ == "__main__":
