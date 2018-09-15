@@ -1,6 +1,7 @@
 import numpy as np
 from queue import PriorityQueue
 from itertools import product
+import math
 
 blank = 0
 black_hole = -1
@@ -71,6 +72,16 @@ def index_of(item, board):
             return x, y
 
 
+def euclidean_distance(board):
+    def distance_of(item):
+        a = index_of(item, board)
+        b = index_of(item, goal_board)
+        x = math.pow(abs(a[1] - b[1]), 2)
+        y = math.pow(abs(a[0] - b[0]), 2)
+        return math.sqrt(x + y)
+    return sum([distance_of(item) for row in board for item in row])
+
+
 def tiles_misplaced(board):
     distance = 0
     for y in range(len(board)):
@@ -89,7 +100,7 @@ def manhattan(board):
 
 
 def heuristic(board):
-    return tiles_misplaced(board)
+    return manhattan(board)
 
 
 def possible_moves(index, board):
